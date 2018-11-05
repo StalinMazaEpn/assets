@@ -1,0 +1,1896 @@
+/**
+  EDgrid es una librería CSS para construir layouts con Responsive Web Design
+  Importe este archivo en su proyecto para empezar a usarlo
+**/
+//Funciones para convertir px a em y rem
+/// Transforma un valor en pixeles a em.
+/// @group   functions
+/// @author  Alvaro Felipe
+/// @param   {number} $el - el valor en pixeles que se desea convertir.
+/// @param   {number} $context - el valor en pixeles del contenedor.
+/// @return  {number} el tamaño transformado en em.
+@function em($el,$context:16px) {
+  @if type_of($el) == number and unit($el) == 'px' {
+    @return ($el / $context) * 1em;
+  } @else {
+    @error 'Function em() requires a px unit as first argument / La función em() requiere una unidad de pixeles como primer argumento (el segundo es opcional)'
+  }
+}
+
+/// Transforma un valor en pixeles a rem.
+/// @group   functions
+/// @author  Alvaro Felipe
+/// @param   {number} $el - el valor en pixeles que se desea convertir.
+/// @return  {number} el tamaño transformado en rem.
+@function rem($el) {
+  @if type_of($el) == number and unit($el) == 'px' {
+    @return ($el / 16px) * 1rem;
+  } @else {
+    @error 'Function rem() requires a px unit as argument / La funcion rem() requiere una unidad de pixeles como argumento';
+  }
+}
+
+// Variables globales (puede sobreescribirlas antes de importar ED grid)
+// No las sobreescriba aquí, sino desde su proyecto.
+$cssCore : false !default; //Compila todo_ el css (no recomendado si se trabaja con sass).
+$cssHelpers : true !default; //Ayudas extras para el layout (para alinear elementos, limpiar los floats, controlar el padding, etc...) Se recomienda activarlo.
+$buttons : true !default;
+$devMode : false !default; //Ayuda visual que nos permite ver en el navegador breakpoints, el tamaño de los elementos, el area disponible etc...
+
+// Selectores (clases) para flex-container y flex-item
+
+$container : ed-container !default; // Permite modificar el nombre de las clases usadas como contenedor e item.
+$item : ed-item !default;
+
+// Ancho máximo para los contenedores
+$max-width : 1200px !default;
+
+// Seperación horizontal entre items (*2)
+$gap : 2rem !default;
+
+// Breakpoints
+$breakpoints : (
+  s : 0,
+  m : 640px,
+  l : 1024px,
+  lg : 1024px,
+  xl : 1440px
+) !default;
+
+// Fracciones para calcular anchos de los items
+$fractions : 3 6 !default;
+
+// Importar componentes
+// estilos base
+// RWD Bases
+*,
+*:before,
+*:after {
+  box-sizing: border-box;
+}
+
+body {
+  margin      : 0;
+  font-family : sans-serif;
+}
+
+// Imágenes responsive
+img {
+  max-width : 100%;
+  height    : auto;
+}
+
+a {
+  text-decoration : none;
+
+  &:hover { text-decoration : underline }
+}
+
+
+
+// mixins from(), to(), fromTo()
+
+/// Devuelve true si el breakpoint es parte del core
+/// @group mq
+/// @author  Alvaro Felipe
+/// @param   {number} $bp - breakpoint
+/// @example scss
+///    .elemento {
+///      @if isCoreBreakpoint(l) {
+///        $customBp : 720px;
+///        ....
+///      }
+///    }
+@function isCoreBreakpoint($bp){
+  @if map-get($breakpoints,$bp) {
+    @return true
+  } @else {
+    @return false
+  }
+}
+
+/// Devuelve true si el breakpint es válido (em, rem, px)
+/// @group   mq
+/// @author  Alvaro Felipe
+/// @param   {number} $bp - breakpoint a verificar.
+@function isValidBreakpoint($bp){
+  @if type-of($bp) == number and (unit($bp) == 'px' or unit($bp) == 'em' or unit($bp) == 'rem') {
+    @return true
+  } @else {
+    @return false
+  }
+}
+
+/// Obtiene un breakpoint del core
+/// @group   mq
+/// @author  Alvaro Felipe
+/// @param   {number} $bp - breakpoint a obtener.
+@function getBp($bp){
+  @return map-get($breakpoints,$bp)
+}
+
+/// Convierte un valor en em o rem a px
+/// @group   mq
+/// @author  Alvaro Felipe
+/// @param   {number} $value - var a convertir a pixeles.
+@function toPx($value){
+  @if type-of($value) == number {
+    @if unit($value) == 'em'{
+      @return ($value / 1em) * 16px;
+    } @else if unit($value) == 'rem'{
+      @return ($value / 1rem) * 16px
+    } @else if unit($value) == 'px' {
+      @return $value;
+    } @else {
+      @error "La funcion toPx() solo acepta numeros en em o rem o px"
+    }
+  } @else {
+    @error "La funcion toPx() solo acepta numeros en em o rem"
+  }
+}
+
+/// From (mayor que $bp)
+/// @group   mq
+/// @author  Alvaro Felipe
+/// @param   {number} $from - breakpoint
+/// @example scss
+///     .elemento {
+///       width: 30%;
+///       @include from(m) {
+///         width: 50%;
+///       }
+///     }
+@mixin from($from){
+  // Si el bp es del core de EDgrid
+  @if isCoreBreakpoint($from){
+    // no imprime media query para tamaño s
+    @if $from == s {
+      @content
+    }
+    // imprime media query en los otros tamaños
+    @else {
+      @media screen and (min-width: getBp($from)){ @content }
+    }
+  }
+  // Si el bp no es del core de EDgrid pero es una unidad válida
+  @else if isValidBreakpoint($from){
+    @media screen and (min-width: $from){ @content }
+  }
+  // Error
+  @else {
+    @error 'El mixin from() solo puede recibir un breakpoint del Core (#{map-keys($breakpoints)}) o un número en px, em o rem'
+  }
+}
+
+/// To (es menor que $to)
+/// @group   mq
+/// @author  Alvaro Felipe
+/// @param   {number} $to - breakpoint
+/// @example scss
+///     .elemento {
+///       width: 50%;
+///       @include to(m) {
+///         width: 30%;
+///       }
+///     }
+@mixin to($to){
+  // Si es un breakpoint del core
+  @if isCoreBreakpoint($to){
+    @if $to == s {
+      @content;
+    } @else {
+      @media screen and (max-width : getBp($to) - 1px) { @content }
+    }
+  }
+  // Si es un breakpoint válido (px, em, rem)
+  @else if isValidBreakpoint($to){
+    @media screen and (max-width: toPx($to) - 1px){ @content }
+  }
+  // Si no es un breakpoint válido lanzar error
+  @else {
+    @error 'El mixin to() solo puede recibir un breakpoint del Core (#{map-keys($breakpoints)}) o un número en px, em o rem'
+  }
+}
+
+/// fromTo la regla se ejecuta entre ambos breakpoints.
+/// @group   mq
+/// @author  Alvaro Felipe
+/// @param   {number} $from - breakpoint desde que medida se iniciara la regla.
+/// @param   {number} $to - breakpoint hasta que medida se ejecutara la regla.
+/// @example scss
+///     .elemento {
+///       background-color: cyan;
+///       @include fromTo(s, l) {
+///         background-color: darken(cyan, .8);
+///       }
+///     }
+@mixin fromTo($from,$to){
+  // Si ambos son breakpoints del core
+  @if isCoreBreakpoint($from) and isCoreBreakpoint($to){
+    @if getBp($to) > getBp($from) {
+      @media screen and (min-width : getBp($from)) and (max-width : getBp($to) - 1px) {
+        @content
+      }
+    } @else {
+      @error "El segundo argumento del mixin fromTo debe ser mayor que el primero"
+    }
+  }
+
+  // Si solo $from es breakpoint del core
+  @else if isCoreBreakpoint($from) and not isCoreBreakpoint($to){
+    @if isValidBreakpoint($to) {
+      @if toPx($to) > toPx(getBp($from)) {
+        @media screen and (min-width : getBp($from)) and (max-width : toPx($to) - 1px) {
+          @content
+        }
+      } @else {
+        @error "El segundo argumento del mixin fromTo debe ser mayor que el primero"
+      }
+    } @else {
+      @error "El segundo argumento del mixin fromTo() debe ser un breakpoint del Core (#{map-keys($breakpoints)}) o un número en px, em o rem"
+    }
+  }
+
+  // Si solo $to es breakpoint del core
+  @else if not isCoreBreakpoint($from) and isCoreBreakpoint($to) {
+    @if isValidBreakpoint($from) {
+      @if toPx(getBp($to)) > toPx($from){
+        @media screen and (min-width : $from) and (max-width : getBp($to) - 1px) {
+          @content
+        }
+      } @else {
+        @error "El segundo argumento del mixin fromTo debe ser mayor que el primero"
+      }
+    }
+    @else {
+      @error "El primer argumento del mixin fromTo() debe ser un breakpoint del Core (#{map-keys($breakpoints)}) o un número en px, em o rem"
+    }
+  }
+
+  // Si no son breakpoints del core pero son breakpoints válidos (px, em, rem)
+  @else if isValidBreakpoint($from) and isValidBreakpoint($to){
+    @if toPx($to) > toPx($from) {
+      @media screen and (min-width : $from) and (max-width : toPx($to) - 1px) {
+        @content
+      }
+    } @else {
+      @error "El segundo argumento del mixin fromTo debe ser mayor que el primero"
+    }
+  }
+
+  // Si al menos hay un breakpoint inválido
+  @else {
+    @error 'Los argumentos del mixin fromTo() deben ser breakpoints del Core (#{map-keys($breakpoints)}) o números en px, em o rem';
+  }
+}
+
+
+// utilidades
+/// Añade padding a los lados para compenzar el gutter de EDgrid.
+/// @group   helpers
+/// @author  Alvaro Felipe
+/// @param   {number} $numero - La cantidad de padding (1 == 1 gutter == 15px).
+/// @example scss
+/// Si el número es 0 el padding se elimina.
+///   .selector1 { @include padding(3) }
+@mixin padding($numero:1){
+  padding-left  : $gap * $numero;
+  padding-right : $gap * $numero;
+}
+
+/// Elimina los paddings horizontales de todos los hijos directos
+/// @group   helpers
+/// @author  Alvaro Felipe
+/// @example scss
+///   .selector2 { @include noPaddingContainer; }
+@mixin noPaddingContainer(){
+  > .#{$item} { @include padding(0) }
+}
+
+/// Hace que un elemento tenga la proporcion de aspecto especificada.
+/// Las propiedades de alinecion con flexbox, no funcionaran en este elemento
+/// @group   helpers
+/// @author  Alvaro Felipe
+@mixin ratio($h,$v) {
+  $width         : 100%;
+  width          : $width;
+  height         : 0;
+  overflow       : hidden;
+  padding-bottom : $width * ($v/$h);
+}
+
+/// Limpia los floats.
+/// @group   helpers
+/// @author  Alvaro Felipe
+/// @example [scss | sass] - Usage
+///   .clearfix {
+///     @include clearfix;
+///   }
+@mixin clearfix {
+  &:before,
+  &:after {
+    content : "";
+    width   : 100%;
+    display : table;
+    clear   : both;
+  }
+}
+/// Alinea el elemento a la derecha
+/// @group   helpers
+/// @author  Alvaro Felipe
+/// @param   {number} $width - Ancho del elemento (con su unidad)
+/// @param   {number} $margin-left - cantidad de margen derecho (opcional)
+/// @example scss
+///   .fb-icon {
+///     @include toRight(20%, 1em);
+///   }
+@mixin toRight($width:auto,$margin-left:1em){
+  float       : right;
+  width       : $width;
+  margin-left : $margin-left;
+}
+
+/// Alinea el elemento a la izquierda
+/// @group   helpers
+/// @author  Alvaro Felipe
+/// @param   {number} $width - Ancho del elemento (con su unidad)
+/// @param   {number} $margin-right - cantidad de margen izquierdo (opcional)
+/// @example scss
+///   .fb-icon {
+///     @include toLeft(20%, 1em);
+///   }
+@mixin toLeft($width:auto,$margin-right:1em){
+  float        : left;
+  width        : $width;
+  margin-right : $margin-right;
+}
+
+/// Centra un elemento
+/// @group   helpers
+/// @author  Alvaro Felipe
+/// @param   {number} $width - Ancho del elemento (con su unidad)
+/// @example scss
+///   .fb-icon {
+///     @include toCenter(20%);
+///   }
+@mixin toCenter($width:auto){
+  display      : block;
+  width        : $width;
+  margin-left  : auto;
+  margin-right : auto;
+  text-align   : center;
+}
+/// Hace al elemento circular.
+/// @group   helpers
+/// @author  Alvaro Felipe
+/// @example scss
+///   .item::before {
+///     content: "";
+///     width: 150px;
+///     height: 150px;
+///     display: block;
+///     @include circle;
+///   }
+@mixin circle { border-radius : 50% }
+
+/// Hace que el elemento ocupe el 100% de su contenedor.
+/// @group   helpers
+/// @author  Alvaro Felipe
+/// @example
+///   .header {
+///     @include full;
+///   }
+@mixin full(){
+  width     : 100%;
+  max-width : 100%;
+  clear     : both;
+}
+/// Hace que un elemento se quede pegado en la parte inferior de la pagina indistintamente del tamaño del contenido del sitio.
+/// @group   helpers
+/// @author  Alvaro Felipe
+/// @example scss
+///    .main-footer {
+///      width: 100%;
+///      display: block;
+///      height: 150px;
+///      @include stickyFooter;
+///    }
+@mixin stickyFooter {
+  @at-root {
+    body {
+      display        : flex;
+      flex-direction : column;
+      min-height     : 100vh;
+    }
+  }
+
+  margin-top : auto;
+}
+
+@mixin cssStyckyFooter {
+  display        : flex;
+  flex-direction : column;
+  min-height     : 100vh;
+
+  > footer { margin-top : auto }
+}
+
+// Versiones CSS
+@mixin helpers {
+  .to-center                {
+    display : block;
+    margin-right : auto;
+    margin-left : auto;
+
+    &.ed-container {
+      display : flex;
+    }
+  }
+  .to-left                  { @include toLeft()             }
+  .to-right                 { @include toRight()            }
+  .full                     { @include full()               }
+  .circle                   { @include circle()             }
+  .clearfix                 { @include clearfix()           }
+  .no-padding.#{$container} { @include noPaddingContainer() }
+  .no-padding.#{$item}      { @include padding(0)           }
+  .padding                  { @include padding(1)           }
+  .padding-2                { @include padding(2)           }
+  .padding-3                { @include padding(3)           }
+  body.sticky-footer        { @include cssStyckyFooter()    }
+  .center { text-align : center; }
+  .left { text-align : left; }
+  .right { text-align : right; }
+}
+
+// modo dev
+// altura de los pseudoelementos que imprimiran clases
+$infoHeight : rem(20px);
+$infoFontSize : $infoHeight * 0.6;
+
+%info {
+  content     : attr(class);
+  font-style  : italic;
+  font-size   : $infoFontSize;
+  font-weight : normal;
+
+  z-index     : 1;
+  right       : 0;
+  position    : absolute;
+
+  display     : table;
+  width       : 100%;
+  padding     : 0 em(5px);
+  height      : $infoHeight;
+  line-height : $infoHeight;
+}
+
+// estilos para los containers en modo dev
+@mixin devModeContainer {
+  padding-top   : $infoHeight;
+  margin-bottom : 10px;
+  outline       : 1px solid tomato;
+  position      : relative;
+
+  .#{$container} { margin-bottom : 0 }
+
+  &:before {
+    @extend %info;
+    top        : 0;
+    background : rgba(tomato, .3);
+    color      : tomato;
+  }
+}
+
+// estilos para los items en modo dev
+@mixin devModeItem {
+  position         : relative;
+  padding-bottom   : $infoHeight;
+  background-color : rgba(yellow, .3);
+  background-clip  : content-box;
+
+  &:before {
+    @extend %info;
+    background : rgba(steelblue, .8);
+    color      : #FFF;
+    bottom     : 0;
+  }
+
+  &:nth-child(even):before {
+    background : rgba(steelblue, .4);
+    color      : steelblue;
+  }
+}
+
+@mixin devMode {
+  margin   : 0 !important;
+  position : relative;
+  top      : 66px;
+
+  // imprimir información del breakpoint
+  &:before {
+    @extend %info;
+    position    : fixed;
+    background  : steelblue;
+    color       : #FFF;
+    font-size   : $infoHeight * 0.7;
+    text-align  : center;
+    line-height : 36px;
+    height      : 36px;
+    top         : 0;
+  }
+
+  @each $size, $screen-size in $breakpoints {
+    @include from($size) {
+      &:before {
+        content : "ed-grid: size #{$size}, from #{$screen-size} (ed-containers: red, ed-items: blue, yellow)";
+      }
+    }
+  }
+}
+
+// Incluir el modo dev en body
+@if $devMode == true { body { @include devMode } }
+
+
+
+// core de EDgrid (containers y items)
+// placeholder para ed-container
+%ed-container {
+  display      : flex;
+  flex-wrap    : wrap;
+  max-width    : $max-width;
+  margin-left  : auto;
+  margin-right : auto;
+  width        : 100%;
+}
+
+// placeholder para ed-item
+%ed-item {
+  margin        : 0;
+  padding-left  : $gap / 2;
+  padding-right : $gap / 2;
+}
+
+/// mixin para crear un ed-container
+/// Description hace que el elemento sea un contenedor, esto dota al elemento para que tambien sea un flex-container.
+/// @group layouts
+/// @author  Alvaro Felipe
+/// @example scss
+/// .container {
+///   @include edContainer;
+///}
+@mixin edContainer {
+  @extend %ed-container;
+
+  @if $devMode == true {
+    @include devModeContainer();
+  }
+}
+
+@mixin ed-container {
+  @extend %ed-container;
+
+  @if $devMode == true {
+    @include devModeContainer();
+  }
+}
+
+/// Hace que un elemento siempre mida el 100% del ancho disponible
+/// @group layouts
+/// @author Alvaro Felipe
+/// @example scss
+/// .full {
+///   @include full;
+/// }
+@mixin full {
+  max-width : 100%;
+}
+
+@mixin edItemWidth($currentBp, $prevBp, $coreBp){
+  // Si el tamaño actual es diferente al previo
+  // asignará el ancho en porcentaje
+  @if $currentBp != $prevBp{
+    @if $currentBp < 1 {
+      @include from($coreBp){
+        width : $currentBp * 100%;
+      }
+    }
+    @else {
+      @include from($coreBp){
+        width : $currentBp * 1%;
+      }
+    }
+  }
+}
+
+
+/// mixin para crear un ed-item
+/// Description
+/// Los argumentos que acepta son las diferentes medidas que tendra el elemento en diferentes resoluciones de pantalla.
+/// Las medidas pueden especificarse como porcentajes ( %  ) o como fracciones (1/3, 3/3 o 3/6, 2/6).
+/// @group layouts
+/// @author  Alvaro Felipe
+/// @param   {number} $s - para resoluciones entre 0px y 640px
+/// @param   {number} $m - para resoluciones entre 640px y 1024px
+/// @param   {number} $l - para resoluciones entre 1024px y 1440px
+/// @param   {number} $xl - para resoluciones desde 1440px en adelante.
+/// @example scss
+///   .container {
+///     @include edContainer;
+///   }
+///
+///   .content {
+///     @include edItem(100, 75, 60);
+///   }
+///   .sidebar {
+///     @include edItem(100, 25, 40);
+///   }
+@mixin edItem($s:100,$m:$s,$l:$m,$xl:$l) {
+  @extend %ed-item;
+
+  @if $devMode == true {
+    @include devModeItem();
+  }
+
+  // calcular el ancho para el primer breakpoint
+  // por defecto es 100% y se convertirá al porcentaje adecuado
+  // según el valor que se le pase
+  @if $s == 100 {
+    width : 100%;
+  } @else if $s < 1 {
+    width : $s * 100%;
+  } @else {
+    width : $s * 1%;
+  }
+
+  // widths for others breakpoints
+  // anchos para los demás breakpoints
+  @include edItemWidth($m, $s, m); //medium
+  @include edItemWidth($l, $m, l); //large
+  @include edItemWidth($xl, $l, xl); //xlarge
+}
+
+@mixin ed-item($s:100,$m:$s,$l:$m,$xl:$l) {
+  @extend %ed-item;
+
+  @if $devMode == true {
+    @include devModeItem();
+  }
+
+  // calcular el ancho para el primer breakpoint
+  // por defecto es 100% y se convertirá al porcentaje adecuado
+  // según el valor que se le pase
+  @if $s == 100 {
+    width : 100%;
+  } @else if $s < 1 {
+    width : $s * 100%;
+  } @else {
+    width : $s * 1%;
+  }
+
+  // widths for others breakpoints
+  // anchos para los demás breakpoints
+  @include edItemWidth($m, $s, m); //medium
+  @include edItemWidth($l, $m, l); //large
+  @include edItemWidth($xl, $l, xl); //xlarge
+}
+
+// crear un ed-container
+.#{$container} { @include ed-container() }
+
+// crear un ed-item
+.#{$item} {
+  @include ed-item;
+
+  // un ed-item a la vez puede ser ed-container
+  // para evitar anidaciones innecesarias
+  &.#{$container}{
+    padding-left : 0;
+    padding-right : 0;
+  }
+}
+
+// Breakpoints
+@mixin coreGrid(){
+  @each $size, $screen-size in $breakpoints{
+    @if $size == s {
+      @for $i from 1 through 20 {
+        .s-#{$i*5},
+        .#{$item}.s-#{$i*5} {
+          width: $i * 5%;
+        }
+      }
+      @each $fraction in $fractions{
+        @for $i from 1 through $fraction{
+          .s-#{$i}-#{$fraction},
+          .#{$item}.s-#{$i}-#{$fraction} {
+            width: (100% / $fraction) * $i;
+          }
+        }
+      }
+    } @else {
+      @media all and (min-width: $screen-size){
+        @for $i from 1 through 20 {
+          .#{$size}-#{$i*5},
+          .#{$item}.#{$size}-#{$i*5}{
+            width: $i * 5%;
+          }
+        }
+        @each $fraction in $fractions {
+          @for $i from 1 through $fraction{
+            .#{$size}-#{$i}-#{$fraction},
+            .#{$item}.#{$size}-#{$i}-#{$fraction} {
+              width: (100% / $fraction) * $i
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+
+// mixin grid()
+// returns grid-item width based on columns number and gutter
+// retorna el ancho del grid-item basado en el número de columnas y el gutter
+@function item-width($width,$gutter){
+  @return calc(#{$width} - #{$gutter});
+}
+
+// asigns grid-item width for each breakpoint
+@mixin columnWidth($currentBreakpoint, $previousBreakpoint, $edgridBreakpoint ,$gutter,$gridItem){
+  // check if current breakpoint is not equal to previous breakpoint
+  @if $currentBreakpoint != $previousBreakpoint {
+    @include from($edgridBreakpoint){
+      $width: 100% / $currentBreakpoint;
+      & > #{$gridItem}{
+        width : item-width($width,$gutter);
+      }
+    }
+  }
+}
+
+/*
+| Mixin para crear cuadriculas
+|
+| $gridItemSelector: nombre del selector CSS de cada item de la cuadricula
+| $listColumns:
+|              * lista de numeros de columnas en cada breakpoint (separados por espacios). Ej: 1 2 3 4
+|              * el numero de columnas del ultimo breakpoint se hereda a breakpoints superiores
+| $gutter: separación entre cada item de la cuadricula (opcional)
+|
+*/
+/// mixin para crear cuadriculas
+/// @group   grid
+/// @author  Alvaro Felipe
+/// @param   {element} $selector - nombre del selector css de cada item de la cuadricula.
+/// @param   {list} $listColumns - lista de numeros de columnas en cada breakpoint. Ej: (1,2,3,4), el numero de columnas del ultimo breakpoint se hereda a breakpoints superiores
+/// @param   {number} $gutter - el espaciado entre cada elemento de la cuadricula. Por defecto es de 1em.
+/// @example scss
+///   .gallery {
+///     @include grid(li, 5 );
+///   }
+
+@mixin grid($gridItemSelector,$listColumns,$gutter:1em){
+ // $width sirve para calcular el ancho de cada item
+  $width       : 100% / nth($listColumns,1);
+
+  // elimina el espaciado vertical de las imágenes
+  img {
+    display : block;
+  }
+
+  display      : flex;
+  flex-wrap    : wrap;
+  margin-left  : -($gutter / 2);
+  margin-right : -($gutter / 2);
+
+  // Evitar scroll horizontal
+  @at-root {
+    body {
+      overflow-x: hidden;
+    }
+  }
+
+  // por si el contenedor es un ul
+  @if $gridItemSelector == li {
+    margin     : 0;
+    padding    : 0;
+    list-style : none;
+
+    li {
+      margin-left : 0;
+      list-style  : none;
+    }
+  }
+
+  & > #{$gridItemSelector} {
+    width  : item-width($width,$gutter);
+    margin : $gutter / 2;
+  }
+
+  // calculate grid item width for each breakpoint
+  $indice: 1;
+  $longListColumns: length($listColumns);
+  @each $size, $_ in $breakpoints{
+    @if $indice > 1 and $indice <= $longListColumns{
+      @include columnWidth(nth($listColumns,$indice),nth($listColumns,$indice - 1),$size,$gutter,$gridItemSelector);
+    }
+    $indice: $indice + 1;
+  }
+
+  // Si soporta grid
+  @supports (grid-template-areas: 'header') {
+    $i: 1;
+    $longListColumns: length($listColumns);
+
+    display: grid;
+    grid-gap: $gutter;
+    margin-left : 0;
+    margin-right : 0;
+
+    // Restaurar el scroll horizontal (por si se necesitara)
+    @at-root {
+      body {
+        overflow-x: visible;
+      }
+    }
+
+    @each $size, $_ in $breakpoints{
+      @if $i <= $longListColumns {
+        @include from($size) {
+          grid-template-columns: repeat(nth($listColumns,$i),1fr);
+        }
+        $i: $i + 1;
+      }
+    }
+
+    // grid-item
+    > #{$gridItemSelector} {
+      width : 100%;
+      margin : 0;
+    }
+  }
+
+}
+
+// mixins para visibilidad
+/// Muestra un elemento a partir del breakpoint especificado
+/// @group   visibility
+/// @author  Alvaro Felipe
+/// @param   {number} $bp - breakpoint a partir del cual mostrar el elemento
+/// @example scss
+///   .sidebar {
+///     @include showFrom(l);
+///   }
+@mixin showFrom($bp){
+  @include to($bp){
+    display : none;
+  }
+}
+
+/// Muestra un elemento por debajo del breakpoint especificado.
+/// @group   visibility
+/// @author  Alvaro Felipe
+/// @param   {number} $bp - breakpoint.
+/// @example scss
+///   .sidebar {
+///     @include showFrom(l);
+///   }
+@mixin showTo($bp){
+  @include from($bp){
+    display : none;
+  }
+}
+
+/// Oculta un elemento a partir del breakpoint especificado
+/// @group   visibility
+/// @author  Alvaro Felipe
+/// @param   {number} $bp - breakpoint a partir del cual ocultar el elemento
+/// @example scss
+///   .sidebar {
+///     @include hideFrom(l);
+///   }
+@mixin hideFrom($bp){
+  @include from($bp){
+    display : none;
+  }
+}
+
+/// Oculta un elemento por debajo del breakpoint especificado.
+/// @group   visibility
+/// @author  Alvaro Felipe
+/// @param   {number} $bp - breakpoint
+/// @example scss
+///   .sidebar {
+///     @include hideFrom(l);
+///   }
+@mixin hideTo($bp){
+  @include to($bp){
+    display : none;
+  }
+}
+
+// Version css
+@mixin visibility {
+  @each $size, $screenSize in $breakpoints {
+    .from-#{$size} { @include showFrom($size) }
+    .to-#{$size} { @include showTo($size) }
+  }
+}
+
+// video RWD
+/// Videos responsive
+/// Este mixing se debe aplicar al contenedor del video.
+/// @group   video
+/// @author  Alvaro Felipe
+/// @param   {selector} $video - selector del elemento video
+/// @example scss
+///     #ed-cursos {
+///       @include edVideo("video");
+///     }
+
+@mixin edVideo ($video: null) {
+  height         : 0;
+  overflow       : hidden;
+  padding-bottom : 56.25%;
+  position       : relative;
+
+  @if $video != null {
+    #{$video} {
+      position : absolute;
+      top      : 0;
+      left     : 0;
+      width    : 100%;
+      height   : 100%;
+    }
+  } @else {
+    > iframe,
+    > video,
+    > .video {
+      position : absolute;
+      top      : 0;
+      left     : 0;
+      width    : 100%;
+      height   : 100%;
+    }
+  }
+}
+
+// estilos para menus
+// estilo default del menu
+/// Aplica un estilo por defecto al menu.
+/// @group   menu
+/// @author  Alvaro Felipe
+@mixin menuStyleDefault {
+  background : #eee;
+  li:hover { background : rgba(#000, .1)  }
+  ul       { background : darken(#eee, 5) }
+  a        { color      : #666            }
+}
+
+// estilo nav para el menu
+// incluye el breakpoint que lo cambia a horizontal
+@mixin menuStyleNav($bp) {
+  $border    : 1px solid rgba(#000, .1);
+  background : #EEE;
+  border     : $border;
+
+  li:hover { background : rgba(#000, .1)  }
+  ul       { background : darken(#eee, 5) }
+  a        { color      : #666            }
+
+  li {
+    border-bottom : $border;
+
+    &:last-child {
+      border-right  : none;
+      border-bottom : none;
+    }
+  }
+
+  ul {
+    border : $border;
+
+    li {
+      border-bottom : $border;
+
+      &:last-child { border-bottom : none }
+    }
+  }
+
+  @include from($bp) {
+    > li {
+      border-right  : 1px solid rgba(#000, .1);
+      border-bottom : none;
+    }
+  }
+}
+
+/// estilo button para el menú
+/// @group   menu
+/// @author  Alvaro Felipe
+@mixin menuStyleButton {
+  li {
+    margin-bottom : .5em;
+    margin-right  : .5em;
+  }
+
+  a {
+    border        : 1px solid rgba(#000, .1);
+    background    : #EEE;
+    line-height   : 2.5em;
+    padding       : 0 1.5em;
+    border-radius : 4px;
+    color         : #666;
+
+    &:hover { background : rgba(#000, .1) }
+  }
+}
+
+/// mixin que construye el menú sin un tema, solo maqueta
+/// @group   menu
+/// @author  Alvaro Felipe
+/// @param   {number} $bp - Breakpoint a partir del cual el menu se volvera horizontal.
+/// @param   {number} $style - estilo a usar en el menu las opciones son: [default | nav | button], este argumento es opcional.
+/// @example [scss | sass] - Usage
+@mixin edMenu($bp,$style:null) {
+  width : 100%;
+
+  &, ul {
+    margin-top    : 0;
+    margin-bottom : 0;
+    padding-left  : 0;
+    list-style    : none;
+  }
+
+  li {
+    position   : relative;
+    list-style : none;
+    flex       : auto;
+
+    // Si es padre de un submenu
+    &.parent-submenu {
+      display   : flex;
+      flex-wrap : wrap;
+
+      a { flex : auto }
+    }
+  }
+
+  //submenus
+  ul {
+    display  : none;
+
+    @include to($bp) {
+      &.show-submenu {
+        display       : block;
+        width         : 100%;
+        order         : 3;
+        margin-left   : 1em;
+        margin-bottom : .5em;
+      }
+    }
+  }
+
+  a {
+    display     : block;
+    line-height : 3em;
+    padding     : 0 1em;
+
+    &:hover { text-decoration : none }
+  }
+
+  // cambio a horizontal
+  @include from($bp) {
+    display     : flex;
+    align-items : center;
+
+    a { text-align : center }
+
+    // Ocultar el botón de expandir en horizontal
+    .expand { display : none}
+
+    ul {
+      position    : absolute;
+      left        : 0;
+      top         : 100%;
+      min-width   : 100%;
+      white-space : nowrap;
+
+      a { text-align : left }
+
+      ul {
+        top  : 0;
+        left : 100%;
+      }
+    }
+
+    // mostrar submenu
+    li:hover > ul { display : block }
+  }
+
+  // expand submenu button
+  .expand-submenu {
+    @include hideFrom($bp);
+    $size      : 3em;
+    position   : relative;
+    right      : 0;
+    width      : $size;
+    height     : $size;
+    cursor     : pointer;
+    transition : all .3s;
+
+    &::after {
+      content       : "";
+      position      : absolute;
+      width         : 40%;
+      height        : 40%;
+      top           : 20%;
+      left          : 30%;
+      border-left   : ($size * 0.15) solid;
+      border-bottom : ($size * 0.15) solid;
+      border-radius : ($size * 0.08);
+      transform     : rotate(-45deg);
+      transition    : all .3s;
+    }
+
+    &.active {
+      transform : rotate(180deg);
+    }
+  }
+
+  // incluir el estilo del menu si se ha definido
+  @if $style == default { @include menuStyleDefault  }
+  @if $style == nav     { @include menuStyleNav($bp) }
+  @if $style == button  { @include menuStyleButton   }
+
+  // compilar los mixins en modo CSS
+  @if $cssCore == true {
+    &.default    { @include menuStyleDefault  }
+    &.nav-bar    { @include menuStyleNav($bp) }
+    &.button-bar { @include menuStyleButton    }
+  }
+}
+
+/// mixin Nav (para el contenedor del menú) 
+/// @group   menu
+/// @author  Alvaro Felipe
+/// @param   {string} $direction  - El eje desde donde aparecera el menu. Las opciones son [left | right | top | bottom]
+/// @param   {number} $bp  - breakpoint que indica hasta donde debe mostrarse en vertical.
+/// @example scss
+///   nav {
+///     @include edNav(left, m);
+///   }
+
+@mixin edNav($direction, $bp){
+  @include to($bp) {
+    $lrWidth   : 85%;
+    position   : fixed;
+    transition : all .3s;
+    height     : 100vh;
+    z-index    : 200;
+    overflow-y : auto;
+
+    @if $direction == left or $direction == right {
+      width : $lrWidth;
+    } @else {
+      width : 100%;
+    }
+
+    @if $direction == left {
+      left : $lrWidth * -1;
+
+      &.show-menu { left : 0 }
+    }
+
+    @if $direction == right {
+      right : $lrWidth * -1;
+
+      &.show-menu { right : 0 }
+    }
+
+    @if $direction == top {
+      width : 100%;
+      left : 0;
+      top : -100%;
+
+      &.show-menu { top : 0 }
+    }
+
+    @if $direction == bottom {
+      width : 100%;
+      left : 0;
+      bottom : -100%;
+
+      &.show-menu { bottom : 0 }
+    }
+  }
+}
+
+/// Toggle del menu
+/// @group   menu
+/// @author  Alvaro Felipe
+/// @param   {number} $size - especifica el tamaño del elemento toggle
+/// @param   {color} $color - especifica el color del toggle.
+/// @example scss
+///   .menu-toggle {
+///     @include navToggle(200px, $black);
+///   }
+@mixin navToggle($size, $color) {
+  $segmentHeight : ($size / 5);
+  position       : relative;
+  z-index        : 300;
+  width          : $size * 1.5;
+  height         : $size;
+  box-shadow     : 0 ($segmentHeight) $color inset;
+  cursor         : pointer;
+
+  &::after,
+  &::before {
+    content          : "";
+    position         : absolute;
+    width            : 100%;
+    height           : ($segmentHeight);
+    background-color : $color;
+    bottom           : 0;
+  }
+
+  &::after {
+    bottom : $segmentHeight * 2;
+  }
+}
+
+// utilidades con flexbox
+@mixin flexOrder {
+  // Solo existe para css, es innecesario en Sass (una sola línea)
+  @each $size, $screen-size in $breakpoints{
+    @if $size == s {
+      @for $i from 1 through 10 {
+        .#{$size}-order-#{$i} {
+          order: $i;
+        }
+      }
+    } @else {
+      @media screen and (min-width: $screen-size){
+        @for $i from 1 through 10 {
+          .#{$size}-order-#{$i} {
+            order: $i;
+          }
+        }
+      }
+    }
+  }
+}
+
+// Alineacion en el main axis
+// Aplican al flex-container
+@mixin flex {
+  display   : flex;
+  flex-wrap : wrap;
+}
+
+@mixin mainJustify {
+  @include flex;
+  justify-content : space-between;
+}
+
+@mixin cssMainJustify {
+  @each $size, $screen-size in $breakpoints {
+    @if $size == s {
+      .#{$size}-justify {
+        @include flex;
+        justify-content : space-between;
+      }
+    } @else {
+      @media all and (min-width: $screen-size){
+        .#{$size}-justify {
+          @include flex;
+          justify-content : space-between;
+        }
+      }
+    }
+  }
+}
+
+@mixin mainDistribute {
+  @include flex;
+  justify-content : space-around;
+}
+
+@mixin cssMainDistribute {
+  @each $size, $screen-size in $breakpoints {
+    @if $size == s {
+      .#{$size}-distribute {
+        @include flex;
+        justify-content : space-around;
+      }
+    } @else {
+      @media all and (min-width: $screen-size){
+        .#{$size}-distribute {
+          @include flex;
+          justify-content : space-around;
+        }
+      }
+    }
+  }
+}
+
+@mixin mainCenter {
+  @include flex;
+  justify-content : center;
+}
+
+@mixin cssMainCenter {
+  @each $size, $screen-size in $breakpoints {
+    @if $size == s {
+      .#{$size}-main-center {
+        @include flex;
+        justify-content : center;
+      }
+    } @else {
+      @media all and (min-width: $screen-size){
+        .#{$size}-main-center {
+          @include flex;
+          justify-content : center;
+        }
+      }
+    }
+  }
+}
+
+@mixin mainStart{
+  @include flex;
+  justify-content : flex-start;
+}
+
+@mixin cssMainStart{
+  @each $size, $screen-size in $breakpoints {
+    @if $size == s {
+      .#{$size}-main-start {
+        @include flex;
+        justify-content : flex-start;
+      }
+    } @else {
+      @media all and (min-width: $screen-size){
+        .#{$size}-main-start {
+          @include flex;
+          justify-content : flex-start;
+        }
+      }
+    }
+  }
+}
+
+@mixin mainEnd{
+  @include flex;
+  justify-content : flex-end;
+}
+
+@mixin cssMainEnd{
+  @each $size, $screen-size in $breakpoints {
+    @if $size == s {
+      .#{$size}-main-end {
+        @include flex;
+        justify-content : flex-end;
+      }
+    } @else {
+      @media all and (min-width: $screen-size){
+        .#{$size}-main-end {
+          @include flex;
+          justify-content : flex-end;
+        }
+      }
+    }
+  }
+}
+
+// Al inicio en el cross axis para CSSCore
+@mixin crossStart{
+  @include flex;
+  align-items   : flex-start;
+  align-content : flex-start;
+}
+
+@mixin cssCrossStart{
+  @each $size, $screen-size in $breakpoints {
+    @if $size == s {
+      .#{$size}-cross-start {
+        @include flex;
+        align-items   : flex-start;
+        align-content : flex-start;
+      }
+    } @else {
+      @media all and (min-width: $screen-size){
+        .#{$size}-cross-start {
+          @include flex;
+          align-items   : flex-start;
+          align-content : flex-start;
+        }
+      }
+    }
+  }
+}
+
+// Al centro en el cross axis para CSSCore
+@mixin crossCenter {
+  @include flex;
+  align-items   : center;
+  align-content : center;
+}
+
+@mixin cssCrossCenter {
+  @each $size, $screen-size in $breakpoints {
+    @if $size == 0 {
+      .#{$size}-cross-center {
+        @include flex;
+        align-items   : center;
+        align-content : center;
+      }
+    } @else {
+      @media all and (min-width: $screen-size){
+        .#{$size}-cross-center {
+          @include flex;
+          align-items   : center;
+          align-content : center;
+        }
+      }
+    }
+  }
+}
+
+// Al final en el cross axis para CSSCore
+@mixin crossEnd {
+  @include flex;
+  align-items   : flex-end;
+  align-content : flex-end;
+}
+
+@mixin cssCrossEnd {
+  @each $size, $screen-size in $breakpoints {
+    @if $size == s {
+      .#{$size}-cross-end {
+        @include flex;
+        align-items   : flex-end;
+        align-content : flex-end;
+      }
+    } @else {
+      @media all and (min-width: $screen-size){
+        .#{$size}-cross-end {
+          @include flex;
+          align-items   : flex-end;
+          align-content : flex-end;
+        }
+      }
+    }
+  }
+}
+
+// Orientación del container
+@mixin flexReverse {
+  @include flex;
+  flex-direction : row-reverse;
+}
+
+@mixin cssFlexReverse{
+  @each $size, $screen-size in $breakpoints {
+    @if $size == s {
+      .#{$size}-reverse {
+        @include flex;
+        flex-direction : row-reverse;
+      }
+    } @else {
+      @media all and (min-width: $screen-size){
+        .#{$size}-reverse {
+          @include flex;
+          flex-direction : row-reverse;
+        }
+      }
+    }
+  }
+}
+
+@mixin flexColumn {
+  @include flex;
+  flex-direction : column;
+}
+
+@mixin cssFlexColumn {
+  @each $size, $screen-size in $breakpoints {
+    @if $size == s {
+      .#{$size}-column {
+        @include flex;
+        flex-direction : column;
+      }
+    } @else {
+      @media all and (min-width: $screen-size){
+        .#{$size}-column {
+          @include flex;
+          flex-direction : column;
+        }
+      }
+    }
+  }
+}
+
+@mixin flexColumnReverse {
+  @include flex;
+  flex-direction : column-reverse;
+}
+
+@mixin cssFlexColumnReverse {
+  @each $size, $screen-size in $breakpoints {
+    @if $size == s {
+      .#{$size}-column-reverse {
+        @include flex;
+        flex-direction : column-reverse;
+      }
+    } @else {
+      @media all and (min-width: $screen-size){
+        .#{$size}-column-reverse {
+          @include flex;
+          flex-direction : column-reverse;
+        }
+      }
+    }
+  }
+}
+
+// Centrado absoluto (vertical y horizontal)
+@mixin flexCenter($child: null) {
+  display         : flex;
+  justify-content : center;
+  align-items     : center;
+  text-align      : center;
+
+  @if $child != null {
+    #{$child}{
+      margin : auto;
+    }
+  }
+}
+
+// Versiones CSS Helpers
+// si se omite el breakpoint se aplica siempre
+@mixin flexCssHelpers {
+  .main-justify        { @include mainJustify       }
+  .main-distribute     { @include mainDistribute    }
+  .main-center         { @include mainCenter        }
+  .main-start          { @include mainStart         }
+  .main-end            { @include mainEnd           }
+  .cross-start         { @include crossStart        }
+  .cross-center        { @include crossCenter       }
+  .cross-end           { @include crossEnd          }
+  .flex-reverse        {  @include flexReverse      }
+  .flex-column         { @include flexColumn        }
+  .flex-column-reverse { @include flexColumnReverse }
+  .abcenter            { @include flexCenter        }
+}
+
+// offsets
+@mixin cssOffset {
+  @each $size, $screen-size in $breakpoints{
+
+    @if $size == s {
+      @for $i from 1 through 20 {
+        .#{$size}-offset-#{$i*5}{
+          margin-left: unquote($i*5 + "%");
+        }
+      }
+      @each $fraction in $fractions{
+        @for $i from 1 through length($fractions){
+          .#{$size}-offset-#{$i}-#{$fraction} {
+            margin-left: (100% / $fraction) * $i;
+          }
+        }
+      }
+    }
+
+    @else {
+      @media all and (min-width: $screen-size){
+        //porcentajes
+        @for $i from 1 through 20 {
+          .#{$size}-offset-#{$i*5}{
+            margin-left: unquote($i*5 + "%");
+          }
+        }
+        //fracciones
+        @each $fraction in $fractions{
+          @for $i from 1 through $fraction {
+            .#{$size}-offset-#{$i}-#{$fraction} {
+              margin-left: (100% / $fraction) * $i;
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+
+@mixin offsetWidth($currentBp, $prevBp, $coreBp){
+  @if $currentBp != $prevBp{
+    @if $currentBp < 1 {
+      @include from($coreBp){
+        margin-left : $currentBp * 100%;
+      }
+    }
+    @else {
+      @include from($coreBp){
+        margin-left : $currentBp * 1%;
+      }
+    }
+  }
+}
+
+/// mixin para aplicarle un desplazamiento a un elemento.
+/// Description el unico parametro necesario es el primero, luego los demas parametros si no estan especificados toman la medida del anterior.
+/// @group   offset
+/// @author  Alvaro Felipe
+/// @param   {number} $s - desplazamiento para medidas menores a 640px.
+/// @param   {number} $m - desplazamiento para medidas mayores a 640px y menores o iguales a 1024px.
+/// @param   {number} $l - desplazamiento para medidas mayores a 1024px y menores o iguales a 1440px.
+/// @param   {number} $xl -desplazamiento para medidas mayores a 1440px en adelante.
+/// @example scss
+///   .sidebar {
+///     @include offset(2, 5, 7);
+///   }
+
+
+@mixin offset($s,$m:$s,$l:$m,$xl:$l){
+  @if $s < 1 {
+    margin-left : $s * 100%;
+  } @else {
+    margin-left : $s * 1%;
+  }
+
+  @include offsetWidth($m,$s,m);
+  @include offsetWidth($l,$m,l);
+  @include offsetWidth($xl,$l,xl);
+}
+
+// mixin button()
+@mixin ed-button {
+  display         : inline-block;
+  padding         : .6em 1.2em;
+  cursor          : pointer;
+  border          : none;
+  text-decoration : none;
+  background      : #eee;
+  color           : #333;
+  margin-right    : 1rem;
+  margin-bottom   : 1rem;
+
+  &:hover {
+    background: #ddd;
+  }
+}
+
+// componentes que se compilaran por default a css
+@if $cssCore == true {
+  // offset
+  @include cssOffset();
+
+  // flexbox order
+  @include flexOrder();
+
+  // Incluir alineaciones en main axis
+  @include cssMainJustify();
+  @include cssMainDistribute();
+  @include cssMainStart();
+  @include cssMainCenter();
+  @include cssMainEnd();
+
+  // Alineaciones en cross axis
+  @include cssCrossStart();
+  @include cssCrossCenter();
+  @include cssCrossEnd();
+
+  // Dirección del main axis
+  @include cssFlexReverse();
+  @include cssFlexColumn();
+  @include cssFlexColumnReverse();
+
+  //grids
+  .grid-container.grid-1234 { @include grid('.grid-item', 1 2 3 4) }
+  .grid-container.grid-2345 { @include grid('.grid-item', 2 3 4 5) }
+
+  // devMode
+  body.dev,
+  body.desarrollo {
+    @include devMode();
+    .ed-container { @include devModeContainer; }
+    .ed-item      { @include devModeItem; }
+  }
+
+  // Botones
+  .button,
+  button {
+    @include ed-button;
+    &.round  { border-radius : .25rem; }
+    &.radius { border-radius: 2em }
+  }
+
+  // Menus
+  // se requiere la clase .ed-menu
+  // y la clase para cambio a horizontal
+  .ed-menu {
+    &.s-horizontal  { @include edMenu(s)  }
+    &.m-horizontal  { @include edMenu(m)  }
+    &.l-horizontal  { @include edMenu(l)  }
+    &.xl-horizontal { @include edMenu(xl) }
+  }
+
+  .ed-nav {
+    &.l-top { @include edNav(top,l)}
+    &.l-bottom { @include edNav(bottom,l)}
+    &.l-left { @include edNav(left,l)}
+    &.l-right { @include edNav(right,l)}
+    &.x-top { @include edNav(top,xl)}
+    &.xl-bottom { @include edNav(bottom,xl)}
+    &.xl-left { @include edNav(left,xl)}
+    &.xl-right { @include edNav(right,xl)}
+    &.m-top { @include edNav(top,m)}
+    &.m-bottom { @include edNav(bottom,m)}
+    &.m-left { @include edNav(left,m)}
+    &.m-right { @include edNav(right,m)}
+  }
+
+  .nav-toggle {
+    @include navToggle(20px,#333)
+  }
+}
+
+
+// ayudas en css (por medio de clases)
+@if $cssHelpers == true {
+  @include coreGrid();
+  @include helpers();
+  @include flexCssHelpers();
+  @include visibility();
+
+  .ed-video { @include edVideo() }
+
+}
+
+
+@if $buttons == true {
+  .button   {
+    @include ed-button;
+
+    &.radius {
+      border-radius : .25rem;
+    }
+
+    &.round {
+      border-radius : 2em;
+    }
+
+    &:last-of-type {
+      margin-right : 0;
+    }
+  }
+}
+
+$max-grid-columns : 20;
+
+:root {
+  --gap: #{$gap}
+}
+
+@mixin grid-column-width($i) {
+  $gaps : ($i - 1) * $gap;
+  $column-width: calc((100% - #{$gaps}) / #{$i});
+  grid-template-columns : repeat($i, $column-width);
+}
+
+.ed-grid {
+  display         : grid;
+  grid-column-gap : $gap;
+
+  // Evita que en tamaños moviles los items queden pegados a los lados
+  width           : calc(100vw - var(--gap));
+  margin-left     : 1rem;
+  margin-right    : 1rem;
+
+  // Por sobre el max width el container se centra
+  @include from($max-width) {
+    width        : $max-width;
+    margin-left  : auto;
+    margin-right : auto;
+  }
+
+  // Agrega separación vertical entre filas
+  .row-gap, .rows-gap {
+    grid-row-gap : $gap;
+  }
+
+  // Para containers hijos de otro container o con clase full
+  // se elimninan los márgenes y se ocupa todo_ el ancho disponible
+  .ed-grid,
+  &.full {
+    width        : 100%;
+    max-width    : 100%;
+    margin-right : 0;
+    margin-left  : 0;
+  }
+
+  @each $size, $screen-size in $breakpoints {
+    // Columnas en el container
+    @if $size == s {
+      @for $i from 2 through $max-grid-columns {
+        &.cols-s-#{$i} {
+          //grid-template-columns: repeat($i,1fr);
+          @include grid-column-width($i);
+        }
+      }
+    } @else {
+      @media all and (min-width: $screen-size){
+        @for $i from 2 through $max-grid-columns {
+          &.cols-#{$size}-#{$i} {
+            //grid-template-columns: repeat($i,1fr);
+            @include grid-column-width($i);
+          }
+        }
+      }
+    }
+
+    // Columnas en los items
+    @if $size == s {
+      @for $i from 1 through $max-grid-columns {
+        > .span-s-#{$i} {
+          grid-column: span $i;
+        }
+      }
+    } @else {
+      @media all and (min-width: $screen-size){
+        @for $i from 1 through $max-grid-columns {
+          > .span-#{$size}-#{$i} {
+            grid-column: span $i;
+          }
+        }
+      }
+    }
+  }
+}
+
+
+// l-block y l-section
+
+.l-block {
+  margin-top : 0;
+  margin-bottom : 1rem;
+
+  @include from(l) {
+    margin-bottom : 2rem;
+  }
+}
+
+.l-section {
+  margin-top : 0;
+  margin-bottom : 2rem;
+
+  @include from(l) {
+    margin-bottom : 4rem;
+  }
+}
